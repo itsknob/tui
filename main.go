@@ -18,6 +18,7 @@ type page struct {
 	title        string
 	inputs       []Input
 	focusedInput int
+	form         *huh.Form
 }
 
 // Init implements tea.Model.
@@ -142,6 +143,7 @@ type Input interface {
 	Value() any
 	View() string
 	Update(tea.Msg) (Input, tea.Cmd)
+	Error() error
 }
 
 /* TextInput Model */
@@ -156,6 +158,10 @@ func (i *TextInput) Init() tea.Cmd {
 
 func (i *TextInput) View() string {
 	return i.textInput.View()
+}
+
+func (i *TextInput) Error() error {
+	return i.textInput.Error()
 }
 
 func (i *TextInput) Update(msg tea.Msg) (Input, tea.Cmd) {
@@ -199,6 +205,10 @@ func (i *SelectInput) View() string {
 	return i.selectInput.View()
 }
 
+func (i *SelectInput) Error() error {
+	return i.selectInput.Error()
+}
+
 func (i *SelectInput) Update(msg tea.Msg) (Input, tea.Cmd) {
 	log.Printf("Updating selectinput. msg: %v\n", msg)
 	var cmd tea.Cmd
@@ -232,10 +242,21 @@ func NewSelectInput(id string, prompt string, placeholder string, options []stri
 }
 
 func NewPage(title string, inputs ...Input) page {
+	var fields []huh.Field
+	for _, i := range inputs {
+		switch i := i.(type) {
+		case *TextInput:
+			fields = append(fields, i.textInput)
+		case *SelectInput:
+			fields = append(fields, i.selectInput)
+		}
+	}
+	form := huh.NewForm(huh.NewGroup(fields...))
 	return page{
 		inputs:       append([]Input{}, inputs...),
 		title:        title,
 		focusedInput: 0,
+		form:         form,
 	}
 }
 
