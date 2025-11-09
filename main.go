@@ -16,7 +16,7 @@ type state struct {
 
 type page struct {
 	title        string
-	inputs       []MyInput
+	inputs       []Input
 	focusedInput int
 }
 
@@ -55,6 +55,7 @@ func (page page) PrevInput() page {
 func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	page := s.pages[s.currentPage]
+	input := page.inputs[page.focusedInput]
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -75,7 +76,8 @@ func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	page.inputs[page.focusedInput], cmd = page.inputs[page.focusedInput].Update(msg)
+	input, cmd = input.Update(msg)
+	page.inputs[page.focusedInput] = input
 	s.pages[s.currentPage] = page
 
 	return s, cmd
@@ -128,68 +130,120 @@ func (s state) View() string {
 }
 
 func NewState(pages []page) *state {
-
 	return &state{
 		pages:       pages,
 		currentPage: 0,
 	}
 }
 
-type MyInput interface {
-	View() string
-	Update(tea.Msg) (tea.Model, tea.Cmd)
+type Input interface {
 	Focus() tea.Cmd
-	Blur()
+	Blur() tea.Cmd
+	Value() any
+	View() string
+	Update(tea.Msg) (Input, tea.Cmd)
 }
 
-/** 
+/*
+*
 
 Text
-
 */
-type TextInput huh.Input
-
-func (i TextInput) View() string {
-	return i.View()
+type TextInput struct {
+	textInput *huh.Input
 }
 
-func (i TextInput) Update(msg tea.Msg) (MyInput, tea.Cmd) {
-	return i.Update(msg)
+// Init implements tea.Model.
+func (i *TextInput) Init() tea.Cmd {
+	return i.textInput.Init()
 }
 
-func (i TextInput) Blur() {
-	i.Blur()
+func (i *TextInput) View() string {
+	return i.textInput.View()
 }
 
-func (i TextInput) Focus() tea.Cmd {
-	return i.Focus()
+func (i *TextInput) Update(msg tea.Msg) (Input, tea.Cmd) {
+	var cmd tea.Cmd
+	model, cmd := i.textInput.Update(msg)
+	if input, ok := model.(*huh.Input); ok {
+		i.textInput = input
+	}
+	return i, cmd
 }
 
-/** 
+func (i *TextInput) Blur() tea.Cmd {
+	return i.textInput.Blur()
+}
+
+// func (i *TextInput) Blur() {
+// 	i.textInput.Blur()
+// }
+
+func (i *TextInput) Focus() tea.Cmd {
+	return i.textInput.Focus()
+}
+
+func (i *TextInput) Value() any {
+	return i.textInput.GetValue()
+}
+
+func NewTextInput(id string, prompt string, placeholder string) *TextInput {
+	input := huh.NewInput().
+		Prompt(prompt).
+		Placeholder(placeholder).
+		Key(id)
+
+	return &TextInput{
+		textInput: input,
+	}
+}
+
+/*
+*
 
 Select
-
 */
-type SelectInput huh.Select[string]
-
-func (i SelectInput) View() string {
-	return i.View()
+type SelectInput struct {
+	selectInput *huh.Select[string]
 }
 
-func (i SelectInput) Update(msg tea.Msg) (MyInput, tea.Cmd) {
-	return i.Update(msg)
+func (i *SelectInput) View() string {
+	return i.selectInput.View()
 }
 
-func (i SelectInput) Blur() tea.Cmd {
-	return i.Blur()
+func (i *SelectInput) Update(msg tea.Msg) (Input, tea.Cmd) {
+	var cmd tea.Cmd
+	updatedInput, cmd := i.selectInput.Update(msg)
+	input, _ := updatedInput.(*huh.Select[string])
+	i.selectInput = input
+	return i, cmd
 }
 
-func (i SelectInput) Focus() tea.Cmd {
-	return i.Focus()
+func (i *SelectInput) Blur() tea.Cmd {
+	return i.selectInput.Blur()
 }
 
-func NewPage(title string, inputs... MyInput) page {
-	var newInputs []MyInput
+func (i *SelectInput) Focus() tea.Cmd {
+	return i.selectInput.Focus()
+}
+
+func (i *SelectInput) Value() any {
+	return i.selectInput.GetValue()
+}
+
+func NewSelectInput(id string, prompt string, placeholder string, options []string) *SelectInput {
+	selectInput := huh.NewSelect[string]().
+		Key(id).
+		Options(huh.NewOptions(options...)...).
+		Title(prompt)
+
+	return &SelectInput{
+		selectInput: selectInput,
+	}
+}
+
+func NewPage(title string, inputs ...Input) page {
+	var newInputs []Input
 	for _, input := range inputs {
 		newInputs = append(newInputs, input)
 	}
@@ -223,32 +277,18 @@ func NewInput(prompt string, placeholder string) textinput.Model {
 // 		Key(id)
 // }
 
-func NewTextInput(id string, prompt string, placeholder string) huh.Input {
-	return *huh.NewInput().
-		Prompt(prompt).
-		Placeholder(placeholder).
-		Key(id)
-}
-
-func NewSelectInput(prompt string, placeholder string, options []string) huh.Select[string] {
-	return *huh.NewSelect[string]().
-		Key("user").
-		Options(huh.NewOptions(options...)...).
-		Title(prompt)
-}
-
 func main() {
 	input11 := NewTextInput("one", "Input 1 ", "")
 	input12 := NewTextInput("two", "Input 2 ", "")
 
 	// todo need interface to wrap input types into single type
 	// todo preferrably also for Text (output) instead of just inputs
-	input13 := NewSelectInput("Select", "One", []string{"One", "Two", "Three"})
+	input13 := NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
 
 	input21 := NewTextInput("one", "Input 1 ", "")
 	input22 := NewTextInput("two", "Input 2 ", "")
 
-	page1 := NewPage("Hello from One", input11, input12, input13) 
+	page1 := NewPage("Hello from One", input11, input12, input13)
 	page2 := NewPage("Hello from Two", input21, input22)
 
 	pages := []page{page1, page2}
