@@ -64,15 +64,15 @@ func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyTab, tea.KeyEnter:
 			page = page.NextInput()
 			s.pages[s.currentPage] = page
-			return s, textinput.Blink
+			return s, nil
 		case tea.KeyShiftTab:
 			page = page.PrevInput()
 			s.pages[s.currentPage] = page
-			return s, textinput.Blink
+			return s, nil
 		case tea.KeyCtrlN:
-			return s.NextPage(), textinput.Blink
+			return s.NextPage(), nil
 		case tea.KeyCtrlP:
-			return s.PrevPage(), textinput.Blink
+			return s.PrevPage(), nil
 		}
 	}
 
@@ -144,11 +144,7 @@ type Input interface {
 	Update(tea.Msg) (Input, tea.Cmd)
 }
 
-/*
-*
-
-Text
-*/
+/* TextInput Model */
 type TextInput struct {
 	textInput *huh.Input
 }
@@ -175,10 +171,6 @@ func (i *TextInput) Blur() tea.Cmd {
 	return i.textInput.Blur()
 }
 
-// func (i *TextInput) Blur() {
-// 	i.textInput.Blur()
-// }
-
 func (i *TextInput) Focus() tea.Cmd {
 	return i.textInput.Focus()
 }
@@ -198,11 +190,7 @@ func NewTextInput(id string, prompt string, placeholder string) *TextInput {
 	}
 }
 
-/*
-*
-
-Select
-*/
+/* SelectInput Model */
 type SelectInput struct {
 	selectInput *huh.Select[string]
 }
@@ -212,6 +200,7 @@ func (i *SelectInput) View() string {
 }
 
 func (i *SelectInput) Update(msg tea.Msg) (Input, tea.Cmd) {
+	log.Printf("Updating selectinput. msg: %v\n", msg)
 	var cmd tea.Cmd
 	updatedInput, cmd := i.selectInput.Update(msg)
 	input, _ := updatedInput.(*huh.Select[string])
@@ -243,58 +232,34 @@ func NewSelectInput(id string, prompt string, placeholder string, options []stri
 }
 
 func NewPage(title string, inputs ...Input) page {
-	var newInputs []Input
-	for _, input := range inputs {
-		newInputs = append(newInputs, input)
-	}
 	return page{
-		inputs:       newInputs,
+		inputs:       append([]Input{}, inputs...),
 		title:        title,
 		focusedInput: 0,
 	}
 }
 
-// todo: refactor so this returns an interface that can wrap any type of input
-// that way we can use mixed inputs for our pages.
-//
-// start by creating new functions to return different types of inputs
-// then work on an interface to wrap them that allows them all to
-// retreive their value at a minimum
-// func NewInput(prompt string, placeholder string) textinput.Model { }
-
-func NewInput(prompt string, placeholder string) textinput.Model {
-	input := textinput.New()
-	input.Prompt = prompt
-	input.Placeholder = placeholder
-	input.Width = 30
-	return input
-}
-
-// func NewTextInput(id string, prompt string, placeholder string) huh.Input {
-// 	return *huh.NewInput().
-// 		Prompt(prompt).
-// 		Placeholder(placeholder).
-// 		Key(id)
-// }
-
 func main() {
 	input11 := NewTextInput("one", "Input 1 ", "")
 	input12 := NewTextInput("two", "Input 2 ", "")
-
-	// todo need interface to wrap input types into single type
-	// todo preferrably also for Text (output) instead of just inputs
 	input13 := NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
+	page1 := NewPage("Hello from One", input11, input12, input13)
 
 	input21 := NewTextInput("one", "Input 1 ", "")
 	input22 := NewTextInput("two", "Input 2 ", "")
-
-	page1 := NewPage("Hello from One", input11, input12, input13)
 	page2 := NewPage("Hello from Two", input21, input22)
 
 	pages := []page{page1, page2}
 	model := NewState(pages)
 	app := tea.NewProgram(model)
-	_, err := app.Run()
+
+	f, err := tea.LogToFile("debug.log", "debug")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	_, err = app.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
