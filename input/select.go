@@ -1,10 +1,7 @@
-// Package selectinput
-package selectinput
+package input
 
 import (
 	"log"
-
-	"tui/input"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -23,7 +20,7 @@ func (i *SelectInput) Error() error {
 	return i.SelectInput.Error()
 }
 
-func (i *SelectInput) Update(msg tea.Msg) (input.Input, tea.Cmd) {
+func (i *SelectInput) Update(msg tea.Msg) (Input, tea.Cmd) {
 	log.Printf("Updating selectinput. msg: %v\n", msg)
 	var cmd tea.Cmd
 	updatedInput, cmd := i.SelectInput.Update(msg)

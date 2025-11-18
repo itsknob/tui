@@ -1,9 +1,6 @@
-// Package textinput exists
-package textinput
+package input
 
 import (
-	"tui/input"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
@@ -26,7 +23,7 @@ func (i *TextInput) Error() error {
 	return i.TextInput.Error()
 }
 
-func (i *TextInput) Update(msg tea.Msg) (input.Input, tea.Cmd) {
+func (i *TextInput) Update(msg tea.Msg) (Input, tea.Cmd) {
 	var cmd tea.Cmd
 	model, cmd := i.TextInput.Update(msg)
 	if input, ok := model.(*huh.Input); ok {

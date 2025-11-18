@@ -5,9 +5,6 @@ import (
 	"strings"
 
 	"tui/input"
-	noteinput "tui/note"
-	selectinput "tui/select"
-	textinput "tui/text"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -261,11 +258,11 @@ func NewPage(title string, inputs ...input.Input) page {
 	var fields []huh.Field
 	for _, i := range inputs {
 		switch i := i.(type) {
-		case *textinput.TextInput:
+		case *input.TextInput:
 			fields = append(fields, i.TextInput)
-		case *selectinput.SelectInput:
+		case *input.SelectInput:
 			fields = append(fields, i.SelectInput)
-		case *noteinput.NoteInput:
+		case *input.NoteInput:
 			fields = append(fields, i.Note)
 		}
 	}
@@ -279,23 +276,23 @@ func NewPage(title string, inputs ...input.Input) page {
 }
 
 func main() {
-	noteDeposit := noteinput.NewNoteInput("Deposit")
-	noteWithdrawal := noteinput.NewNoteInput("Withdrawal")
-	noteBalance := noteinput.NewNoteInput("Balance")
+	noteDeposit := input.NewNoteInput("Deposit")
+	noteWithdrawal := input.NewNoteInput("Withdrawal")
+	noteBalance := input.NewNoteInput("Balance")
 	menuPage := NewPage("Menu", noteDeposit, noteWithdrawal, noteBalance)
 
-	input11 := textinput.NewTextInput("depositAmount", "Amount", "")
-	input12 := textinput.NewTextInput("two", "Input 2 ", "")
-	input13 := selectinput.NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
+	input11 := input.NewTextInput("depositAmount", "Amount", "")
+	input12 := input.NewTextInput("two", "Input 2 ", "")
+	input13 := input.NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
 	pageDeposit := NewPage("Hello from Deposit", input11, input12, input13)
 
-	input21 := textinput.NewTextInput("one", "Amount", "")
-	input22 := textinput.NewTextInput("two", "Input 2 ", "")
-	input23 := selectinput.NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
+	input21 := input.NewTextInput("one", "Amount", "")
+	input22 := input.NewTextInput("two", "Input 2 ", "")
+	input23 := input.NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
 	pageWithdrawal := NewPage("Hello from Withdrawal", input21, input22, input23)
 
-	input31 := textinput.NewTextInput("three", "Input 1 ", "")
-	input32 := textinput.NewTextInput("four", "Input 2 ", "")
+	input31 := input.NewTextInput("three", "Input 1 ", "")
+	input32 := input.NewTextInput("four", "Input 2 ", "")
 	pageBalance := NewPage("Hello from Balance", input31, input32)
 
 	pages := []page{menuPage, pageDeposit, pageWithdrawal, pageBalance}
