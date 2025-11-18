@@ -4,6 +4,11 @@ import (
 	"log"
 	"strings"
 
+	"tui/input"
+	noteinput "tui/note"
+	selectinput "tui/select"
+	textinput "tui/text"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
@@ -15,7 +20,7 @@ type state struct {
 
 type page struct {
 	title        string
-	inputs       []Input
+	inputs       []input.Input
 	focusedInput int
 	form         *huh.Form
 }
@@ -252,168 +257,16 @@ func NewState(pages []page) *state {
 	}
 }
 
-type Input interface {
-	Focus() tea.Cmd
-	Blur() tea.Cmd
-	// Value() any
-	// View() string
-	Update(tea.Msg) (Input, tea.Cmd)
-	// Error() error
-}
-
-type NoteInput struct {
-	title string
-	note  *huh.Note
-}
-
-func NewNoteInput(title string) *NoteInput {
-	input := NoteInput{
-		note:  huh.NewNote().Title(title).Next(true),
-		title: title,
-	}
-	return &input
-}
-
-// Init implements tea.Model.
-func (i *NoteInput) Init() tea.Cmd {
-	return i.note.Init()
-}
-
-func (i *NoteInput) View() string {
-	return i.title
-}
-
-func (i *NoteInput) Error() error {
-	return i.note.Error()
-}
-
-func (i *NoteInput) Update(msg tea.Msg) (Input, tea.Cmd) {
-	var cmd tea.Cmd
-	model, cmd := i.note.Update(msg)
-	if input, ok := model.(*huh.Note); ok {
-		i.note = input
-	}
-	return i, cmd
-}
-
-func (i *NoteInput) Blur() tea.Cmd {
-	return i.note.Blur()
-}
-
-func (i *NoteInput) Focus() tea.Cmd {
-	return i.note.Focus()
-}
-
-func (i *NoteInput) Value() any {
-	return i.note.GetValue()
-}
-
-/* TextInput Model */
-type TextInput struct {
-	textInput *huh.Input
-}
-
-// Init implements tea.Model.
-func (i *TextInput) Init() tea.Cmd {
-	return i.textInput.Init()
-}
-
-func (i *TextInput) View() string {
-	return i.textInput.View()
-}
-
-func (i *TextInput) Error() error {
-	return i.textInput.Error()
-}
-
-func (i *TextInput) Update(msg tea.Msg) (Input, tea.Cmd) {
-	var cmd tea.Cmd
-	model, cmd := i.textInput.Update(msg)
-	if input, ok := model.(*huh.Input); ok {
-		i.textInput = input
-	}
-	return i, cmd
-}
-
-func (i *TextInput) Blur() tea.Cmd {
-	return i.textInput.Blur()
-}
-
-func (i *TextInput) Focus() tea.Cmd {
-	return i.textInput.Focus()
-}
-
-func (i *TextInput) Value() any {
-	return i.textInput.GetValue()
-}
-
-func NewTextInput(id string, prompt string, placeholder string) *TextInput {
-	input := huh.NewInput().
-		Prompt(prompt).
-		Placeholder(placeholder).
-		Key(id).
-		Title(prompt)
-
-	return &TextInput{
-		textInput: input,
-	}
-}
-
-/* SelectInput Model */
-type SelectInput struct {
-	selectInput *huh.Select[string]
-}
-
-func (i *SelectInput) View() string {
-	return i.selectInput.View()
-}
-
-func (i *SelectInput) Error() error {
-	return i.selectInput.Error()
-}
-
-func (i *SelectInput) Update(msg tea.Msg) (Input, tea.Cmd) {
-	log.Printf("Updating selectinput. msg: %v\n", msg)
-	var cmd tea.Cmd
-	updatedInput, cmd := i.selectInput.Update(msg)
-	input, _ := updatedInput.(*huh.Select[string])
-	i.selectInput = input
-	return i, cmd
-}
-
-func (i *SelectInput) Blur() tea.Cmd {
-	return i.selectInput.Blur()
-}
-
-func (i *SelectInput) Focus() tea.Cmd {
-	return i.selectInput.Focus()
-}
-
-func (i *SelectInput) Value() any {
-	return i.selectInput.GetValue()
-}
-
-func NewSelectInput(id string, prompt string, placeholder string, options []string) *SelectInput {
-	selectInput := huh.NewSelect[string]().
-		Key(id).
-		Options(huh.NewOptions(options...)...).
-		Title(prompt)
-
-	return &SelectInput{
-		selectInput: selectInput,
-	}
-}
-
-func NewPage(title string, inputs ...Input) page {
+func NewPage(title string, inputs ...input.Input) page {
 	var fields []huh.Field
 	for _, i := range inputs {
 		switch i := i.(type) {
-		case *TextInput:
-			fields = append(fields, i.textInput)
-		case *SelectInput:
-			fields = append(fields, i.selectInput)
-		case *NoteInput:
-			fields = append(fields, i.note)
+		case *textinput.TextInput:
+			fields = append(fields, i.TextInput)
+		case *selectinput.SelectInput:
+			fields = append(fields, i.SelectInput)
+		case *noteinput.NoteInput:
+			fields = append(fields, i.Note)
 		}
 	}
 	form := huh.NewForm(huh.NewGroup(fields...))
@@ -426,23 +279,23 @@ func NewPage(title string, inputs ...Input) page {
 }
 
 func main() {
-	noteDeposit := NewNoteInput("Deposit")
-	noteWithdrawal := NewNoteInput("Withdrawal")
-	noteBalance := NewNoteInput("Balance")
+	noteDeposit := noteinput.NewNoteInput("Deposit")
+	noteWithdrawal := noteinput.NewNoteInput("Withdrawal")
+	noteBalance := noteinput.NewNoteInput("Balance")
 	menuPage := NewPage("Menu", noteDeposit, noteWithdrawal, noteBalance)
 
-	input11 := NewTextInput("depositAmount", "Amount", "")
-	input12 := NewTextInput("two", "Input 2 ", "")
-	input13 := NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
+	input11 := textinput.NewTextInput("depositAmount", "Amount", "")
+	input12 := textinput.NewTextInput("two", "Input 2 ", "")
+	input13 := selectinput.NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
 	pageDeposit := NewPage("Hello from Deposit", input11, input12, input13)
 
-	input21 := NewTextInput("one", "Amount", "")
-	input22 := NewTextInput("two", "Input 2 ", "")
-	input23 := NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
+	input21 := textinput.NewTextInput("one", "Amount", "")
+	input22 := textinput.NewTextInput("two", "Input 2 ", "")
+	input23 := selectinput.NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
 	pageWithdrawal := NewPage("Hello from Withdrawal", input21, input22, input23)
 
-	input31 := NewTextInput("three", "Input 1 ", "")
-	input32 := NewTextInput("four", "Input 2 ", "")
+	input31 := textinput.NewTextInput("three", "Input 1 ", "")
+	input32 := textinput.NewTextInput("four", "Input 2 ", "")
 	pageBalance := NewPage("Hello from Balance", input31, input32)
 
 	pages := []page{menuPage, pageDeposit, pageWithdrawal, pageBalance}
