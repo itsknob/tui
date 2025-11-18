@@ -20,6 +20,14 @@ type page struct {
 	form         *huh.Form
 }
 
+type (
+	nextPageMsg struct{}
+	prevPageMsg struct{}
+	navigateMsg struct {
+		target int
+	}
+)
+
 // Init implements tea.Model.
 func (s state) Init() tea.Cmd {
 	for idx := range s.pages {
@@ -62,21 +70,80 @@ func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return s, tea.Quit
+		case tea.KeyUp:
+			page.focusedInput--
+			if page.focusedInput < 1 { // exclude menu page at 0
+				page.focusedInput = 3
+			}
+			s.pages[s.currentPage] = page
+			return s, nil
+		case tea.KeyDown:
+			page.focusedInput++
+			if page.focusedInput > 3 {
+				page.focusedInput = 1 // exclude menu page at 0
+			}
+			s.pages[s.currentPage] = page
+			return s, nil
+
+		case tea.KeyEsc:
+			return s.Update(navigateMsg{
+				target: 0,
+			})
+
 		case tea.KeyTab, tea.KeyEnter:
+			if page.title == "Menu" {
+				if msg.Type == tea.KeyEnter {
+					log.Default().Println("Pressed enter on menu page")
+					log.Default().Printf("Current Index: %d\n", page.focusedInput)
+					log.Default().Printf("# Inputs: %d\n", 3)
+					return s.Update(navigateMsg{
+						target: page.focusedInput,
+					})
+				}
+				return s, cmd
+			}
 			// page = page.NextInput()
 			// s.pages[s.currentPage] = page
 			cmd := s.pages[s.currentPage].form.NextField()
 			return s, cmd
 		case tea.KeyShiftTab:
+			if page.title == "Menu" {
+				return s, page.form.PrevField()
+			}
 			// page = page.PrevInput()
 			// s.pages[s.currentPage] = page
 			cmd := s.pages[s.currentPage].form.PrevField()
 			return s, cmd
 		case tea.KeyCtrlN:
-			return s.NextPage(), nil
+			page.form.GetFocusedField().Update(page.form.GetFocusedField().Blur)
+			return s.Update(nextPageMsg{})
 		case tea.KeyCtrlP:
-			return s.PrevPage(), nil
+			return s.Update(s.PrevPage())
 		}
+	case navigateMsg:
+		s.currentPage = msg.target
+		return s.Update(nil)
+	case nextPageMsg:
+		cmds := []tea.Cmd{}
+		cmds = append(cmds, s.pages[s.currentPage].form.GetFocusedField().Blur())
+
+		s.currentPage++
+		if s.currentPage > len(s.pages)-1 {
+			s.currentPage = 0
+		}
+		cmds = append(cmds, s.pages[s.currentPage].form.GetFocusedField().Focus())
+		return s, tea.Batch(cmds...)
+
+	case prevPageMsg:
+		cmds := []tea.Cmd{}
+		cmds = append(cmds, s.pages[s.currentPage].form.GetFocusedField().Blur())
+		s.currentPage--
+		if s.currentPage < 0 {
+			s.currentPage = len(s.pages) - 1
+		}
+		cmds = append(cmds, s.pages[s.currentPage].form.GetFocusedField().Focus())
+		return s, tea.Batch(cmds...)
+
 	case SubmitMessage:
 		log.Fatalf("This worked with msg: %+v\n", msg)
 	}
@@ -104,42 +171,48 @@ func SubmitForm() tea.Msg {
 	return msg
 }
 
-func (s state) NextPage() state {
-	// Blur
-	// curPage := s.pages[s.currentPage]
-	// curPage.inputs[curPage.focusedInput].Blur()
-
-	s.currentPage++
-	if s.currentPage > len(s.pages)-1 {
-		s.currentPage = 0
-	}
-
-	// Focus
-	// curPage.inputs[curPage.focusedInput].Focus()
-	return s
+func (s state) NextPage() tea.Msg {
+	s.Update(s.pages[s.currentPage].form.GetFocusedField().Blur())
+	return nextPageMsg{}
 }
 
-func (s state) PrevPage() state {
+func (s state) PrevPage() tea.Msg {
+	s.Update(s.pages[s.currentPage].form.GetFocusedField().Blur())
 	// Blur
 	// curPage := s.pages[s.currentPage]
 	// curPage.inputs[curPage.focusedInput].Blur()
 
-	// Next Page
-	s.currentPage--
-	if s.currentPage < 0 {
-		s.currentPage = len(s.pages) - 1
-	}
+	// Prev Page
+	// s.currentPage--
+	// if s.currentPage < 0 {
+	// 	s.currentPage = len(s.pages) - 1
+	// }
 
 	// Focus
 	// curPage.inputs[curPage.focusedInput].Focus()
-	return s
+	return prevPageMsg{}
 }
 
 // View implements tea.Model.
 func (s state) View() string {
+	var sb strings.Builder
 	page := s.pages[s.currentPage]
+
+	// Menu Page UI
+	if page.title == "Menu" {
+		for idx, menuOption := range []string{"Menu", "Deposit", "Withdrawal", "Balance"} {
+			if page.focusedInput == idx {
+				sb.WriteString(">")
+			} else {
+				sb.WriteString(" ")
+			}
+			sb.WriteString(menuOption)
+			sb.WriteString("\n")
+		}
+		return sb.String()
+	}
+
 	if page.form.State == huh.StateCompleted {
-		var sb strings.Builder
 		sb.WriteString("Submitting with: \n")
 		sb.WriteString("   1: " + s.pages[0].form.GetString("one") + "\n")
 		sb.WriteString("   2: " + s.pages[0].form.GetString("two") + "\n")
@@ -186,6 +259,53 @@ type Input interface {
 	// View() string
 	Update(tea.Msg) (Input, tea.Cmd)
 	// Error() error
+}
+
+type NoteInput struct {
+	title string
+	note  *huh.Note
+}
+
+func NewNoteInput(title string) *NoteInput {
+	input := NoteInput{
+		note:  huh.NewNote().Title(title).Next(true),
+		title: title,
+	}
+	return &input
+}
+
+// Init implements tea.Model.
+func (i *NoteInput) Init() tea.Cmd {
+	return i.note.Init()
+}
+
+func (i *NoteInput) View() string {
+	return i.title
+}
+
+func (i *NoteInput) Error() error {
+	return i.note.Error()
+}
+
+func (i *NoteInput) Update(msg tea.Msg) (Input, tea.Cmd) {
+	var cmd tea.Cmd
+	model, cmd := i.note.Update(msg)
+	if input, ok := model.(*huh.Note); ok {
+		i.note = input
+	}
+	return i, cmd
+}
+
+func (i *NoteInput) Blur() tea.Cmd {
+	return i.note.Blur()
+}
+
+func (i *NoteInput) Focus() tea.Cmd {
+	return i.note.Focus()
+}
+
+func (i *NoteInput) Value() any {
+	return i.note.GetValue()
 }
 
 /* TextInput Model */
@@ -292,11 +412,13 @@ func NewPage(title string, inputs ...Input) page {
 			fields = append(fields, i.textInput)
 		case *SelectInput:
 			fields = append(fields, i.selectInput)
+		case *NoteInput:
+			fields = append(fields, i.note)
 		}
 	}
 	form := huh.NewForm(huh.NewGroup(fields...))
 	return page{
-		// inputs:       append([]Input{}, inputs...),
+		// inputs:       inp,
 		title:        title,
 		focusedInput: 0,
 		form:         form,
@@ -304,16 +426,26 @@ func NewPage(title string, inputs ...Input) page {
 }
 
 func main() {
-	input11 := NewTextInput("one", "Input 1 ", "")
+	noteDeposit := NewNoteInput("Deposit")
+	noteWithdrawal := NewNoteInput("Withdrawal")
+	noteBalance := NewNoteInput("Balance")
+	menuPage := NewPage("Menu", noteDeposit, noteWithdrawal, noteBalance)
+
+	input11 := NewTextInput("depositAmount", "Amount", "")
 	input12 := NewTextInput("two", "Input 2 ", "")
 	input13 := NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
-	page1 := NewPage("Hello from One", input11, input12, input13)
+	pageDeposit := NewPage("Hello from Deposit", input11, input12, input13)
 
-	input21 := NewTextInput("three", "Input 1 ", "")
-	input22 := NewTextInput("four", "Input 2 ", "")
-	page2 := NewPage("Hello from Two", input21, input22)
+	input21 := NewTextInput("one", "Amount", "")
+	input22 := NewTextInput("two", "Input 2 ", "")
+	input23 := NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
+	pageWithdrawal := NewPage("Hello from Withdrawal", input21, input22, input23)
 
-	pages := []page{page1, page2}
+	input31 := NewTextInput("three", "Input 1 ", "")
+	input32 := NewTextInput("four", "Input 2 ", "")
+	pageBalance := NewPage("Hello from Balance", input31, input32)
+
+	pages := []page{menuPage, pageDeposit, pageWithdrawal, pageBalance}
 	model := NewState(pages)
 	app := tea.NewProgram(model)
 
