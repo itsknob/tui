@@ -49,7 +49,8 @@ func NewTextInput(id string, prompt string, placeholder string) *TextInput {
 		Prompt(prompt).
 		Placeholder(placeholder).
 		Key(id).
-		Title(prompt)
+		Title(prompt).
+		CharLimit(24)
 
 	return &TextInput{
 		TextInput: input,
