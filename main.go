@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	"tui/input"
 
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
@@ -179,28 +182,33 @@ func (s state) View() string {
 	}
 
 	if page.Form.State == huh.StateCompleted {
+		// Generic Containers to store formdata in
 		var (
-			form1 string
-			form2 string
-			form3 string
+			value any
 		)
 		sb.WriteString("Submitting with: \n")
 		log.Println("Page: " + page.Title)
 		switch page.Title {
 		case "Deposit":
-			form1 = s.pages[s.currentPage].Form.GetString("depositAmount")
-			form2 = s.pages[s.currentPage].Form.GetString("depositDescription")
-			form3 = s.pages[s.currentPage].Form.GetString("depositUser")
-			sb.WriteString("Amount: " + form1 + "\n")
-			sb.WriteString("Description: " + form2 + "\n")
-			sb.WriteString("User: " + form3 + "\n")
+			value = s.pages[s.currentPage].Form.GetString("depositAmount")
+			valueFloat, _ := strconv.ParseFloat(value.(string), 64)
+			sb.WriteString(fmt.Sprintf("Amount: $%.2f\n", valueFloat))
+
+			value = s.pages[s.currentPage].Form.GetString("depositDescription")
+			sb.WriteString("Description: " + value.(string) + "\n")
+
+			value = s.pages[s.currentPage].Form.GetString("depositUser")
+			sb.WriteString("User: " + value.(string) + "\n")
 		case "Withdrawal":
-			form1 = s.pages[s.currentPage].Form.GetString("withdrawalAmount")
-			form2 = s.pages[s.currentPage].Form.GetString("withdrawalDescription")
-			form3 = s.pages[s.currentPage].Form.GetString("withdrawalUser")
-			sb.WriteString("Amount: " + form1 + "\n")
-			sb.WriteString("Description: " + form2 + "\n")
-			sb.WriteString("User: " + form3 + "\n")
+			value = s.pages[s.currentPage].Form.GetString("withdrawalAmount")
+			valueFloat, _ := strconv.ParseFloat(value.(string), 64)
+			sb.WriteString(fmt.Sprintf("Amount: $%.2f\n", valueFloat))
+
+			value = s.pages[s.currentPage].Form.GetString("withdrawalDescription")
+			sb.WriteString("Description: " + value.(string) + "\n")
+
+			value = s.pages[s.currentPage].Form.GetString("withdrawalUser")
+			sb.WriteString("User: " + value.(string) + "\n")
 		case "Balance":
 			sb.WriteString("How did you submit the balance page?\n")
 		}
@@ -231,14 +239,30 @@ func main() {
 	input13 := input.NewSelectInput("depositUser", "User ", "One", []string{"One", "Two", "Three"})
 	pageDeposit := input.NewPage("Deposit", input11, input12, input13)
 
-	input21 := input.NewTextInput("one", "Amount", "")
-	input22 := input.NewTextInput("two", "Input 2 ", "")
-	input23 := input.NewSelectInput("user", "Select", "One", []string{"One", "Two", "Three"})
+	input21 := input.NewTextInput("withdrawalAmount", "Amount", "")
+	input22 := input.NewTextInput("withdrawalDescription", "Input 2 ", "")
+	input23 := input.NewSelectInput("withdrawalUser", "Select", "One", []string{"One", "Two", "Three"})
 	pageWithdrawal := input.NewPage("Withdrawal", input21, input22, input23)
 
-	input31 := input.NewTextInput("three", "Input 1 ", "")
-	input32 := input.NewTextInput("four", "Input 2 ", "")
-	pageBalance := input.NewPage("Balance", input31, input32)
+	input31 := input.NewTextInput("balanceBalance", "Balance", "")
+	input32 := input.NewTextInput("balanceTransactions", "Transactions", "")
+	table33 := input.NewTable("Transactions",
+		[]table.Column{
+			{Title: "Date"},
+			{Title: "Amount"},
+			{Title: "Description"},
+		})
+
+	// table33 := table.New(
+	// 	table.WithColumns(
+	// 		[]table.Column{
+	// 			{Title: "Date"},
+	// 			{Title: "Amount"},
+	// 			{Title: "Description"},
+	// 		}),
+	// )
+
+	pageBalance := input.NewPage("Balance", input31, input32, table33)
 
 	pages := []input.Page{menuPage, pageDeposit, pageWithdrawal, pageBalance}
 	model := NewState(pages)

@@ -25,6 +25,7 @@ func (i *SelectInput) Update(msg tea.Msg) (Input, tea.Cmd) {
 	var cmd tea.Cmd
 	updatedInput, cmd := i.SelectInput.Update(msg)
 	input, _ := updatedInput.(*huh.Select[string])
+	log.Default().Printf("Select Input Value: %+v\n", input)
 	i.SelectInput = input
 	return i, cmd
 }
