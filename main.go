@@ -126,6 +126,18 @@ func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		log.Fatalf("This worked with msg: %+v\n", msg)
 	}
 
+	if page.Title == "Balance" {
+		if page.Form.State == huh.StateCompleted {
+			log.Default().Printf("Updating Table\n")
+			model, cmd := page.Table.Update(msg)
+			page.Table = model
+			s.pages[s.currentPage] = page
+			return s, cmd
+		} else {
+			return page.Form.Update(msg)
+		}
+	}
+
 	model, cmd := page.Form.Update(msg)
 	if model, ok := model.(*huh.Form); ok {
 		s.pages[s.currentPage].Form = model
@@ -180,6 +192,23 @@ func (s state) View() string {
 		}
 		return sb.String()
 	}
+	if page.Title == "Balance" && page.Form.State != huh.StateCompleted {
+		return page.Form.View()
+
+		// log.Default().Println("Printing Balance Page")
+		// table33 := table.New()
+		// table33.SetColumns([]table.Column{
+		// 	{Width: 16, Title: "Date"},
+		// 	{Width: 16, Title: "Amount"},
+		// 	{Width: 16, Title: "Description"},
+		// })
+		// // table33.SetRows([]table.Row{{"2025-01-01", "123.45", "First Deposit"}, {"2025-02-02", "234.56", "Second Deposit"}})
+		// // log.Default().Printf("%s", strings.Join(table33.Rows()[0], ", "))
+		// table33.FromValues("2025-01-01,123.45,First Deposit\n2025-02-02,234.56,Second Deposit", ",")
+		// // log.Default().Printf("cols %+v\n", table33.Columns())
+		// // log.Default().Printf("rows %+v\n", table33.Rows())
+		// table33.View()
+	}
 
 	if page.Form.State == huh.StateCompleted {
 		// Generic Containers to store formdata in
@@ -210,7 +239,8 @@ func (s state) View() string {
 			value = s.pages[s.currentPage].Form.GetString("withdrawalUser")
 			sb.WriteString("User: " + value.(string) + "\n")
 		case "Balance":
-			sb.WriteString("How did you submit the balance page?\n")
+			// When form completed show table
+			sb.WriteString(page.Table.View())
 		}
 
 		return sb.String()
@@ -245,13 +275,15 @@ func main() {
 	pageWithdrawal := input.NewPage("Withdrawal", input21, input22, input23)
 
 	input31 := input.NewTextInput("balanceBalance", "Balance", "")
-	input32 := input.NewTextInput("balanceTransactions", "Transactions", "")
+	// input32 := input.NewTextInput("balanceTransactions", "Transactions", "")
+	table33rows := []table.Row{{"2025-01-01", "123.45", "First Deposit"}}
 	table33 := input.NewTable("Transactions",
 		[]table.Column{
-			{Title: "Date"},
-			{Title: "Amount"},
-			{Title: "Description"},
-		})
+			{Width: 16, Title: "Date"},
+			{Width: 16, Title: "Amount"},
+			{Width: 16, Title: "Description"},
+		},
+		table33rows)
 
 	// table33 := table.New(
 	// 	table.WithColumns(
@@ -262,7 +294,8 @@ func main() {
 	// 		}),
 	// )
 
-	pageBalance := input.NewPage("Balance", input31, input32, table33)
+	// pageBalance := input.NewPage("Balance", input31, input32, table33)
+	pageBalance := input.NewPage("Balance", input31, table33)
 
 	pages := []input.Page{menuPage, pageDeposit, pageWithdrawal, pageBalance}
 	model := NewState(pages)
