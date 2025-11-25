@@ -39,23 +39,3 @@ func NewPage(title string, inputs ...Input) Page {
 		Form:         form,
 	}
 }
-
-func (page Page) NextInput() Page {
-	page.inputs[page.FocusedInput].Blur() // blur input we are leaving
-	page.FocusedInput++
-	if page.FocusedInput > len(page.inputs)-1 {
-		page.FocusedInput = 0
-	}
-	page.inputs[page.FocusedInput].Focus() // focus next input
-	return page
-}
-
-func (page Page) PrevInput() Page {
-	page.inputs[page.FocusedInput].Blur() // blur input we are leaving
-	page.FocusedInput--
-	if page.FocusedInput < 0 {
-		page.FocusedInput = len(page.inputs) - 1
-	}
-	page.inputs[page.FocusedInput].Focus() // focus next input
-	return page
-}
