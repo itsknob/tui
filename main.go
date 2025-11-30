@@ -35,7 +35,8 @@ func (s state) Init() tea.Cmd {
 	}
 	// Ensure current page's current input is last to be Focused
 	// s.pages[s.currentPage].inputs[s.pages[s.currentPage].FocusedInput].Focus()
-	return s.pages[s.currentPage].Form.GetFocusedField().Focus()
+	// return s.pages[s.currentPage].Form.GetFocusedField().Focus()
+	return nil
 }
 
 // Update implements tea.Model.
@@ -46,8 +47,13 @@ func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
+		/** Ensusure you can quit */
 		case tea.KeyCtrlC:
 			return s, tea.Quit
+
+		/**
+		* These Move through options outside of forms
+		 */
 		case tea.KeyUp:
 			page.FocusedInput--
 			if page.FocusedInput < 1 { // exclude menu page at 0
@@ -63,41 +69,36 @@ func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.pages[s.currentPage] = page
 			return s, nil
 
+		/** Return to Menu */
 		case tea.KeyEsc:
 			return s.Update(navigateMsg{
 				target: 0,
 			})
 
-		case tea.KeyTab, tea.KeyEnter:
+		case tea.KeyEnter:
+			// Naviage to Selected Page
 			if page.Title == "__Menu__" {
-				if msg.Type == tea.KeyEnter {
-					log.Default().Println("Pressed enter on menu page")
-					log.Default().Printf("Current Index: %d\n", page.FocusedInput)
-					log.Default().Printf("# Inputs: %d\n", 3)
-					return s.Update(navigateMsg{
-						target: page.FocusedInput,
-					})
-				}
-				return s, cmd
+				return s.Update(navigateMsg{
+					target: page.FocusedInput,
+				})
 			}
-			// page = page.NextInput()
-			// s.pages[s.currentPage] = page
 			cmd := s.pages[s.currentPage].Form.NextField()
 			return s, cmd
 		case tea.KeyShiftTab:
 			if page.Title == "__Menu__" {
 				return s, page.Form.PrevField()
 			}
-			// page = page.PrevInput()
-			// s.pages[s.currentPage] = page
 			cmd := s.pages[s.currentPage].Form.PrevField()
 			return s, cmd
-		case tea.KeyCtrlN:
-			page.Form.GetFocusedField().Update(page.Form.GetFocusedField().Blur)
-			return s.Update(nextPageMsg{})
-		case tea.KeyCtrlP:
-			return s.Update(s.PrevPage())
+
+			// case tea.KeyCtrlN:
+			// 	page.Form.GetFocusedField().Update(page.Form.GetFocusedField().Blur)
+			// 	return s.Update(nextPageMsg{})
+			// case tea.KeyCtrlP:
+			// 	return s.Update(s.PrevPage())
 		}
+
+	/** Jump to specified target page */
 	case navigateMsg:
 		s.currentPage = msg.target
 		return s.Update(nil)
@@ -124,6 +125,8 @@ func (s state) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SubmitMessage:
 		log.Fatalf("This worked with msg: %+v\n", msg)
+		s.currentPage = 0
+		return s, nil
 	}
 
 	if page.Title == "Balance" {
@@ -192,9 +195,13 @@ func (s state) View() string {
 		}
 		return sb.String()
 	}
-	if page.Title == "Balance" && page.Form.State != huh.StateCompleted {
-		return page.Form.View()
-
+	if page.Title == "Balance" {
+		if page.Form.State != huh.StateCompleted {
+			return page.Form.View()
+		} else {
+			return page.Table.View()
+		}
+		//
 		// log.Default().Println("Printing Balance Page")
 		// table33 := table.New()
 		// table33.SetColumns([]table.Column{
@@ -238,9 +245,10 @@ func (s state) View() string {
 
 			value = s.pages[s.currentPage].Form.GetString("withdrawalUser")
 			sb.WriteString("User: " + value.(string) + "\n")
-		case "Balance":
-			// When form completed show table
-			sb.WriteString(page.Table.View())
+			// case "Balance":
+			// 	// When form completed show table
+			// 	// sb.WriteString(page.Table.View())
+			// 	return "Not Dead\n\n" + page.Table.View()
 		}
 
 		return sb.String()

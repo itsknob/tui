@@ -1,6 +1,10 @@
 package input
 
 import (
+	"errors"
+	"log"
+	"regexp"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 )
@@ -50,9 +54,22 @@ func NewTextInput(id string, prompt string, placeholder string) *TextInput {
 		Placeholder(placeholder).
 		Key(id).
 		Title(prompt).
-		CharLimit(24)
+		CharLimit(24).
+		Validate(OnlyNumbers)
 
 	return &TextInput{
 		TextInput: input,
+	}
+}
+
+func OnlyNumbers(text string) error {
+	matches, err := regexp.Match("[0-9]*.[0-9]{2}", []byte(text))
+	if err != nil {
+		log.Default().Println("Bad Regex")
+	}
+	if matches {
+		return nil
+	} else {
+		return errors.New("regex did not match")
 	}
 }

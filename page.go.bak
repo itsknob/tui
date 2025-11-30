@@ -1,0 +1,57 @@
+package input
+
+import (
+	"tui/input"
+
+	"github.com/charmbracelet/huh"
+)
+
+type Page struct {
+	title        string
+	inputs       []input.Input
+	focusedInput int
+	form         *huh.Form
+}
+
+func NewPage(title string, inputs ...input.Input) Page {
+	var fields []huh.Field
+	for _, i := range inputs {
+		switch i := i.(type) {
+		case *input.TextInput:
+			fields = append(fields, i.TextInput)
+		case *input.SelectInput:
+			fields = append(fields, i.SelectInput)
+		case *input.NoteInput:
+			fields = append(fields, i.Note)
+		case *input.TableView:
+			fields = append(fields, i.TableView)
+		}
+	}
+	form := huh.NewForm(huh.NewGroup(fields...))
+	return Page{
+		// inputs:       inp,
+		title:        title,
+		focusedInput: 0,
+		form:         form,
+	}
+}
+
+func (page Page) NextInput() Page {
+	page.inputs[page.focusedInput].Blur() // blur input we are leaving
+	page.focusedInput++
+	if page.focusedInput > len(page.inputs)-1 {
+		page.focusedInput = 0
+	}
+	page.inputs[page.focusedInput].Focus() // focus next input
+	return page
+}
+
+func (page Page) PrevInput() Page {
+	page.inputs[page.focusedInput].Blur() // blur input we are leaving
+	page.focusedInput--
+	if page.focusedInput < 0 {
+		page.focusedInput = len(page.inputs) - 1
+	}
+	page.inputs[page.focusedInput].Focus() // focus next input
+	return page
+}
