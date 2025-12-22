@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -8,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var docStyle = lipgloss.NewStyle().Margin(1, 2).Height(32)
+var docStyle = lipgloss.NewStyle().Margin(1, 2).Height(24)
 
 type activePage int
 
@@ -55,6 +56,7 @@ func (mainState MainState) Init() tea.Cmd {
 }
 
 func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Println("MainState - Update")
 	// var cmds []tea.Cmd
 	var cmd tea.Cmd
 
@@ -68,13 +70,35 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 
+		log.Println("MainState - Update - KeyMsg")
 		switch msg.String() {
 		case "ctrl+c":
+			log.Println("MainState - Update - KeyMsg - Ctrl+C - Quitting")
 			return mainState, tea.Quit
+		case "enter":
+			mainState.activePage = activePage(mainState.menuOptionsList.Index() + 1) // don't count menuPage
+			log.Printf("MainState - Update - KeyMsg - Enter - Selected: %d\n", mainState.activePage)
+			switch mainState.activePage {
+			case DepositPage:
+				log.Println("MainState - Update - KeyMsg - Enter - Deposit - New")
+				dp := NewDepositView(mainState)
+				return dp, dp.Init()
+			case WithdrawalPage:
+				log.Println("MainState - Update - KeyMsg - Enter - WithdrawalPage - New")
+				// todo: implement WithdrawalPage and update this new func
+				wp := NewWithdrawalView(mainState)
+				return wp, wp.Init()
+			}
+			return mainState, nil
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
+		log.Printf("MainState - Update - WindowSizeMsg - W: %d, H: %d", msg.Width-h, msg.Height-v)
 		mainState.menuOptionsList.SetSize(msg.Width-h, msg.Height-v)
+	case ReturnToMenuMsg:
+		log.Printf("MainState - Update - ReturnToMenuMsg - From: %s", msg.from)
+		mainState.activePage = 0
+		return mainState, nil
 	}
 
 	mainState.menuOptionsList, cmd = mainState.menuOptionsList.Update(msg)
@@ -83,7 +107,8 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (mainState MainState) View() string {
-	return docStyle.Render(mainState.menuOptionsList.View())
+	string := fmt.Sprintf("Active Page: %d \n", mainState.activePage)
+	return docStyle.Render(string + mainState.menuOptionsList.View())
 }
 
 func main() {
@@ -124,4 +149,103 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+type ReturnToMenuMsg struct {
+	from string
+}
+
+func ReturnToMenu(from string) tea.Msg {
+	return ReturnToMenuMsg{
+		from: from,
+	}
+}
+
+type DepositView struct {
+	mainState MainState
+	title     string
+	// amount float64
+}
+
+func NewDepositView(mainState MainState) *DepositView {
+	return &DepositView{
+		mainState: mainState,
+		title:     "Deposit",
+	}
+}
+
+// Init implements tea.Model.
+func (d *DepositView) Init() tea.Cmd {
+	log.Println("Deposit - Init")
+	return nil
+}
+
+// Update implements tea.Model.
+func (d *DepositView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Printf("Deposit - Update")
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		log.Println("Deposit - Update - KeyMsg")
+		switch msg.String() {
+		case tea.KeyBackspace.String():
+			log.Println("Deposit - Update - KeyMsg - Backspace - ReturnToMenu()")
+			return d.mainState.Update(ReturnToMenu("Deposit"))
+		case "enter":
+			log.Println("Deposit - Update - Enter - Qutting")
+			return d, tea.Quit
+		}
+	}
+
+	log.Println("Deposit - Update - Returning")
+	return d, nil
+}
+
+// View implements tea.Model.
+func (d *DepositView) View() string {
+	return fmt.Sprintf("%s\nasdf\n", d.title)
+}
+
+/* WithdrawalView exists */
+type WithdrawalView struct {
+	mainState MainState
+	title     string
+	// amount float64
+}
+
+func NewWithdrawalView(mainState MainState) *WithdrawalView {
+	return &WithdrawalView{
+		mainState: mainState,
+		title:     "Withdrawal",
+	}
+}
+
+// Init implements tea.Model.
+func (d *WithdrawalView) Init() tea.Cmd {
+	log.Println("Withdrawal - Init")
+	return nil
+}
+
+// Update implements tea.Model.
+func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Printf("Withdrawal - Update")
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		log.Println("Withdrawal - Update - KeyMsg")
+		switch msg.String() {
+		case tea.KeyBackspace.String():
+			log.Println("Withdrawal - Update - KeyMsg - Backspace - ReturnToMenu()")
+			return d.mainState.Update(ReturnToMenu("Withdrawal"))
+		case "enter":
+			log.Println("Withdrawal - Update - Enter - Qutting")
+			return d, tea.Quit
+		}
+	}
+
+	log.Println("Withdrawal - Update - Returning")
+	return d, nil
+}
+
+// View implements tea.Model.
+func (d *WithdrawalView) View() string {
+	return fmt.Sprintf("%s\nfdsa\n", d.title)
 }
