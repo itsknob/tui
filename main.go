@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -161,27 +162,54 @@ func ReturnToMenu(from string) tea.Msg {
 	}
 }
 
+func SubmitDeposit(amount string, date string, note string) tea.Msg {
+	// todo: POST to API
+
+	return ReturnToMenu("SubmitDeposit")
+}
+
 type DepositView struct {
 	mainState MainState
 	title     string
+	form      *huh.Form
+	amount    string
+	date      string
+	note      string
+
 	// amount float64
 }
 
 func NewDepositView(mainState MainState) *DepositView {
-	return &DepositView{
+	depositView := &DepositView{
 		mainState: mainState,
 		title:     "Deposit",
+		form:      nil,
+		amount:    "",
+		date:      "",
+		note:      "",
 	}
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Amount").Value(&depositView.amount),
+			huh.NewInput().Title("Date").Value(&depositView.date),
+			huh.NewInput().Title("Note").Value(&depositView.note),
+		),
+	).WithHeight(24).WithWidth(32)
+	depositView.form = form
+	return depositView
 }
 
 // Init implements tea.Model.
 func (d *DepositView) Init() tea.Cmd {
+	d.form.Init()
 	log.Println("Deposit - Init")
 	return nil
 }
 
 // Update implements tea.Model.
 func (d *DepositView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	log.Printf("Deposit - Update")
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -189,20 +217,34 @@ func (d *DepositView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case tea.KeyBackspace.String():
 			log.Println("Deposit - Update - KeyMsg - Backspace - ReturnToMenu()")
-			return d.mainState.Update(ReturnToMenu("Deposit"))
-		case "enter":
-			log.Println("Deposit - Update - Enter - Qutting")
-			return d, tea.Quit
+			model, cmd := d.mainState.Update(ReturnToMenu("Deposit"))
+			if m, ok := model.(MainState); ok {
+				d.mainState = m
+			}
+			cmds = append(cmds, cmd)
+			// case "enter":
+			// 	log.Println("Deposit - Update - Enter - Qutting")
+			// 	return d, tea.Quit
 		}
 	}
+	if d.form.State == huh.StateCompleted {
+		return d.mainState.Update(SubmitDeposit(d.amount, d.date, d.note))
+	}
+
+	// Form Updates
+	model, cmd := d.form.Update(msg)
+	if m, ok := model.(*huh.Form); ok {
+		d.form = m
+	}
+	cmds = append(cmds, cmd)
 
 	log.Println("Deposit - Update - Returning")
-	return d, nil
+	return d, tea.Batch(cmds...)
 }
 
 // View implements tea.Model.
 func (d *DepositView) View() string {
-	return fmt.Sprintf("%s\nasdf\n", d.title)
+	return fmt.Sprintf("%s\n%s\n", d.title, d.form.View())
 }
 
 /* WithdrawalView exists */
