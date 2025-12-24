@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,23 +26,9 @@ const (
 
 type MainState struct {
 	activePage      activePage
+	lastSubmit      string
 	menuOptionsList list.Model
 }
-
-// func NewMainState() MainState {
-// 	menuItems := []list.Item{
-// 		MenuItem("Deposit"),
-// 		MenuItem("Withdrawal"),
-// 	}
-// 	menuList := list.New(menuItems, list.NewDefaultDelegate(), 20, 16)
-// 	menuList.Title = "Menu"
-// 	// fmt.Println(menuList.Items())
-//
-// 	return MainState{
-// 		activePage:      MenuPage,
-// 		menuOptionsList: menuList,
-// 	}
-// }
 
 type item struct {
 	title, desc string
@@ -164,6 +152,19 @@ func ReturnToMenu(from string) tea.Msg {
 
 func SubmitDeposit(amount string, date string, note string) tea.Msg {
 	// todo: POST to API
+	var datestr string
+	amt, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		amt = -1
+	}
+	d, err := time.Parse("YYYY-MM-DD", date)
+	if err != nil {
+		datestr = time.Now().Format("YYYY-MM-DD")
+	}
+	datestr = d.String()
+
+	// post to API
+	log.Printf("Submitting with: \nAmount: %0.2f\nDate: %s\nNote: %s\n", amt, datestr, note)
 
 	return ReturnToMenu("SubmitDeposit")
 }
@@ -175,8 +176,6 @@ type DepositView struct {
 	amount    string
 	date      string
 	note      string
-
-	// amount float64
 }
 
 func NewDepositView(mainState MainState) *DepositView {
