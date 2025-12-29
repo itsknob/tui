@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"os/exec"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -166,6 +169,17 @@ func SubmitDeposit(amount string, date string, note string) tea.Msg {
 	// post to API
 	log.Printf("Submitting with: \nAmount: %0.2f\nDate: %s\nNote: %s\n", amt, datestr, note)
 
+	// Execute NodeJS Executable that takes in transaction as parameter,
+	// connects to actual budget server, then imports that transaction,
+	// finally shutting down the connection
+	payload := fmt.Sprintf(`{"account":"kaiden","date":"%s","amount":%f,"notes":"%s"}`, date, amt, note)
+	cmd := exec.Command("./index.js", payload)
+	out, err := cmd.Output()
+	if err != nil {
+		log.Printf("Error: %v\n", err)
+	}
+	log.Printf("Output: %s\n", string(out))
+
 	return ReturnToMenu("SubmitDeposit")
 }
 
@@ -176,6 +190,18 @@ type DepositView struct {
 	amount    string
 	date      string
 	note      string
+}
+
+func isDate(s string) error {
+	re, err := regexp.Compile(`\d\d\d\d-\d\d-\d\d`)
+	if err != nil {
+		return err
+	}
+	if !re.MatchString(s) {
+		return errors.New("invalid date format - required: YYYY-MM-DD")
+	}
+
+	return nil
 }
 
 func NewDepositView(mainState MainState) *DepositView {
@@ -191,7 +217,7 @@ func NewDepositView(mainState MainState) *DepositView {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Amount").Value(&depositView.amount),
-			huh.NewInput().Title("Date").Value(&depositView.date),
+			huh.NewInput().Title("Date").Value(&depositView.date).Validate(isDate),
 			huh.NewInput().Title("Note").Value(&depositView.note),
 		),
 	).WithHeight(24).WithWidth(32)

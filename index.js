@@ -1,3 +1,10 @@
+#!/usr/bin/env node
+
+if (process.argv.length < 3) {
+  console.error("Requires Input of type Transaction")
+  return 1;
+}
+
 let api = require('@actual-app/api');
 require("dotenv").config();
 
@@ -17,7 +24,7 @@ async function setup() {
     serverURL: process.env.BUDGET_SERVER_URL,
     password: process.env.BUDGET_PASS
   })
-  console.log("Initialized app")
+  // console.log("Initialized app")
   await api.downloadBudget(process.env.BUDGET_SYNC_ID)
 }
 
@@ -38,7 +45,7 @@ async function importTransaction(transaction) {
   // Map User Name to Account Id
   if (Object.keys(accounts).includes(transaction.account.toLowerCase())) {
     transaction.account = accounts[transaction.account.toLowerCase()]
-    console.log(transaction.account)
+    // console.log(transaction.account)
   }
 
   // Hardcode Bank of Mom
@@ -51,22 +58,17 @@ async function importTransaction(transaction) {
   }
 
   // Confirmation
-  console.log("Final Transaction", transaction);
+  // console.log("Final Transaction", transaction);
 
   // Upload
-  const { errors, added, updated } = await api.importTransactions(transaction.account, [transaction])
-  console.log({
-    errors,
-    added,
-    updated
-  })
-  console.log("Transaction Uploaded")
+  await api.importTransactions(transaction.account, [transaction])
+  // console.log("Transaction Uploaded")
 }
 
 
 (async (transactionString) => {
   const transaction = JSON.parse(transactionString)
-  console.log("Initial Transaction: ", transaction)
+  // console.log("Initial Transaction: ", transaction)
   await setup();
 
   await importTransaction(transaction)
