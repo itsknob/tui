@@ -55,6 +55,7 @@ async function importTransaction(transaction) {
   let amtString = transaction.amount.toString()
   if (amtString.includes('.')) {
     transaction.amount = parseInt(amtString.replace(".", ""))
+    process.stdout.write("Amount: " + transaction.amount.toString() + "\n")
   }
 
   // Confirmation

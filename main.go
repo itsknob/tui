@@ -1,6 +1,20 @@
 package main
 
+/**
+*
+* TODO:
+* todo: Allow date to be empty
+* todo: Sanitize dates eg. 2025-12-39
+* todo: Pull Transactions
+* 	todo: First pass All Transactions
+* 	todo: local filter
+* 	todo: server api param filter
+* todo: Add User Select Box to Forms
+* todo: update transactions filter with user select
+ */
+
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -28,9 +42,15 @@ const (
 	TransactionsPage
 )
 
+type transaction struct {
+	amount float64
+	date   string
+	note   string
+}
+
 type MainState struct {
 	activePage      activePage
-	lastSubmit      string
+	lastSubmit      transaction
 	menuOptionsList list.Model
 }
 
@@ -89,6 +109,15 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		log.Printf("MainState - Update - WindowSizeMsg - W: %d, H: %d", msg.Width-h, msg.Height-v)
 		mainState.menuOptionsList.SetSize(msg.Width-h, msg.Height-v)
 	case ReturnToMenuMsg:
+		if msg.transaction != nil {
+			mainState.lastSubmit = *msg.transaction
+
+			prettyTransaction, _ := json.MarshalIndent(*msg.transaction, "", "  ")
+			err := huh.NewConfirm().Title("Submitting!").Description(string(prettyTransaction)).Affirmative("Okeydokey!").Negative("Sounds Good!").Run()
+			if err != nil {
+				log.Printf("MainState - Update - ReturnToMenuMsg - Failed in Cornfirm")
+			}
+		}
 		log.Printf("MainState - Update - ReturnToMenuMsg - From: %s", msg.from)
 		mainState.activePage = 0
 		return mainState, nil
@@ -145,12 +174,14 @@ func main() {
 }
 
 type ReturnToMenuMsg struct {
-	from string
+	from        string
+	transaction *transaction
 }
 
-func ReturnToMenu(from string) tea.Msg {
+func ReturnToMenu(from string, transaction *transaction) tea.Msg {
 	return ReturnToMenuMsg{
-		from: from,
+		from:        from,
+		transaction: transaction,
 	}
 }
 
@@ -193,7 +224,13 @@ func SubmitDeposit(amount string, date string, note string) tea.Msg {
 	}
 	log.Printf("Output: %s\n", string(out))
 
-	return ReturnToMenu("SubmitDeposit")
+	t := transaction{
+		amount: amt,
+		date:   date,
+		note:   note,
+	}
+
+	return ReturnToMenu("SubmitDeposit", &t)
 }
 
 type DepositView struct {
@@ -255,14 +292,11 @@ func (d *DepositView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case tea.KeyBackspace.String():
 			log.Println("Deposit - Update - KeyMsg - Backspace - ReturnToMenu()")
-			model, cmd := d.mainState.Update(ReturnToMenu("Deposit"))
+			model, cmd := d.mainState.Update(ReturnToMenu("Deposit", nil))
 			if m, ok := model.(MainState); ok {
 				d.mainState = m
 			}
 			cmds = append(cmds, cmd)
-			// case "enter":
-			// 	log.Println("Deposit - Update - Enter - Qutting")
-			// 	return d, tea.Quit
 		}
 	}
 
@@ -290,27 +324,43 @@ func (d *DepositView) View() string {
 type WithdrawalView struct {
 	mainState MainState
 	title     string
-	form      huh.Form
+	form      *huh.Form
 	amount    string
 	date      string
 	note      string
 }
 
 func NewWithdrawalView(mainState MainState) *WithdrawalView {
-	return &WithdrawalView{
+	withdrawalView := &WithdrawalView{
 		mainState: mainState,
 		title:     "Withdrawal",
+		form:      nil,
+		amount:    "",
+		date:      "",
+		note:      "",
 	}
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Amount").Value(&withdrawalView.amount),
+			huh.NewInput().Title("Date").Value(&withdrawalView.date).Validate(isDate),
+			huh.NewInput().Title("Note").Value(&withdrawalView.note),
+		),
+	).WithHeight(24).WithWidth(32)
+	withdrawalView.form = form
+	return withdrawalView
 }
 
 // Init implements tea.Model.
 func (d *WithdrawalView) Init() tea.Cmd {
+	d.form.Init()
 	log.Println("Withdrawal - Init")
 	return nil
 }
 
 // Update implements tea.Model.
 func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	log.Printf("Withdrawal - Update")
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -318,24 +368,32 @@ func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case tea.KeyBackspace.String():
 			log.Println("Withdrawal - Update - KeyMsg - Backspace - ReturnToMenu()")
-			return d.mainState.Update(ReturnToMenu("Withdrawal"))
-		case "enter":
-			log.Println("Withdrawal - Update - Enter - Qutting")
-			return d, tea.Quit
+			model, cmd := d.mainState.Update(ReturnToMenu("Withdrawal", nil))
+			if m, ok := model.(MainState); ok {
+				d.mainState = m
+			}
+			cmds = append(cmds, cmd)
 		}
 	}
 
 	if d.form.State == huh.StateCompleted {
-		return d.mainState.Update(SubmitWithdrawal(d.amount, d.date, d.note))
+		return d.mainState.Update(SubmitDeposit(d.amount, d.date, d.note))
 	}
 
+	// Form Updates
+	model, cmd := d.form.Update(msg)
+	if m, ok := model.(*huh.Form); ok {
+		d.form = m
+	}
+	cmds = append(cmds, cmd)
+
 	log.Println("Withdrawal - Update - Returning")
-	return d, nil
+	return d, tea.Batch(cmds...)
 }
 
 // View implements tea.Model.
 func (d *WithdrawalView) View() string {
-	return fmt.Sprintf("%s\nfdsa\n", d.title)
+	return fmt.Sprintf("%s\n%s\n", d.title, d.form.View())
 }
 
 func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
@@ -370,7 +428,7 @@ func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
 	// Execute NodeJS Executable that takes in transaction as parameter,
 	// connects to actual budget server, then imports that transaction,
 	// finally shutting down the connection
-	payload := fmt.Sprintf(`{"account":"kaiden","date":"%s","amount":%f,"notes":"%s"}`, date, amt, note)
+	payload := fmt.Sprintf(`{"account":"kaiden","date":"%s","amount":%f,"notes":"%s"}`, datestr, amt, note)
 	cmd := exec.Command("./index.js", payload)
 	out, err := cmd.Output()
 	if err != nil {
@@ -378,5 +436,11 @@ func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
 	}
 	log.Printf("SubmitWithdrawal - Output: %s\n", string(out))
 
-	return ReturnToMenu("SubmitWithdrawal")
+	t := transaction{
+		amount: amt,
+		date:   date,
+		note:   note,
+	}
+
+	return ReturnToMenu("SubmitWithdrawal", &t)
 }
