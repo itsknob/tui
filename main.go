@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -158,13 +159,25 @@ func SubmitDeposit(amount string, date string, note string) tea.Msg {
 	var datestr string
 	amt, err := strconv.ParseFloat(amount, 64)
 	if err != nil {
-		amt = -1
+		amt = 0
+		math.Copysign(amt, -1.0)
 	}
-	d, err := time.Parse("YYYY-MM-DD", date)
-	if err != nil {
+
+	// Ensure amount is positive
+	if amt <= 0 {
+		amt *= -1.0
+	}
+
+	if date != "" {
+		d, err := time.Parse("YYYY-MM-DD", date)
+		if err != nil {
+			log.Printf("SubmitDeposit - failed to parse date: %s", date)
+		}
+		datestr = d.String()
+
+	} else {
 		datestr = time.Now().Format("YYYY-MM-DD")
 	}
-	datestr = d.String()
 
 	// post to API
 	log.Printf("Submitting with: \nAmount: %0.2f\nDate: %s\nNote: %s\n", amt, datestr, note)
@@ -252,6 +265,7 @@ func (d *DepositView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// 	return d, tea.Quit
 		}
 	}
+
 	if d.form.State == huh.StateCompleted {
 		return d.mainState.Update(SubmitDeposit(d.amount, d.date, d.note))
 	}
@@ -276,7 +290,10 @@ func (d *DepositView) View() string {
 type WithdrawalView struct {
 	mainState MainState
 	title     string
-	// amount float64
+	form      huh.Form
+	amount    string
+	date      string
+	note      string
 }
 
 func NewWithdrawalView(mainState MainState) *WithdrawalView {
@@ -308,6 +325,10 @@ func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if d.form.State == huh.StateCompleted {
+		return d.mainState.Update(SubmitWithdrawal(d.amount, d.date, d.note))
+	}
+
 	log.Println("Withdrawal - Update - Returning")
 	return d, nil
 }
@@ -315,4 +336,47 @@ func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View implements tea.Model.
 func (d *WithdrawalView) View() string {
 	return fmt.Sprintf("%s\nfdsa\n", d.title)
+}
+
+func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
+	// todo: POST to API
+	var datestr string
+	amt, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		amt = 0                  // If there's an error, don't affect the balance.
+		math.Copysign(amt, -1.0) // IEEE754 negative 0
+		note = fmt.Sprintf("SubmitWithdrawal - Error Parsing Amount '%s' - Original Description: %s", amount, note)
+	}
+
+	// Ensure ammount is negative when submitting
+	if amt >= 0 {
+		amt *= -1.0 // multiply by negtive 1
+	}
+
+	if date != "" {
+		dateparsed, err := time.Parse("YYYY-MM-DD", date)
+		if err != nil {
+			log.Printf("SubmitWidrawal - Failed to parse date &%s\n", date)
+		}
+		datestr = dateparsed.String()
+	} else {
+		datestr = time.Now().Format("YYYY-MM-DD")
+	}
+	// if can't parse use current date
+
+	// post to API
+	log.Printf("SubmitWithdrawal - Submitting with: \nAmount: %0.2f\nDate: %s\nNote: %s\n", amt, datestr, note)
+
+	// Execute NodeJS Executable that takes in transaction as parameter,
+	// connects to actual budget server, then imports that transaction,
+	// finally shutting down the connection
+	payload := fmt.Sprintf(`{"account":"kaiden","date":"%s","amount":%f,"notes":"%s"}`, date, amt, note)
+	cmd := exec.Command("./index.js", payload)
+	out, err := cmd.Output()
+	if err != nil {
+		log.Printf("SubmitWithdrawal - Error: %v\n", err)
+	}
+	log.Printf("SubmitWithdrawal - Output: %s\n", string(out))
+
+	return ReturnToMenu("SubmitWithdrawal")
 }
