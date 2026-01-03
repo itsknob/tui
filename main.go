@@ -37,8 +37,8 @@ const (
 	MenuPage activePage = iota
 	DepositPage
 	WithdrawalPage
-	BalancePage
 	TransactionsPage
+	BalancePage
 )
 
 type transaction struct {
@@ -88,7 +88,7 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			log.Println("MainState - Update - KeyMsg - Ctrl+C - Quitting")
 			mainState.activePage = MenuPage
 			cmds = append(cmds, tea.Quit)
-			// return mainState, tea.Quit
+			return mainState, tea.Quit
 		case "enter":
 			mainState.activePage = activePage(mainState.menuOptionsList.Index() + 1) // don't count menuPage
 			log.Printf("MainState - Update - KeyMsg - Enter - Selected: %d\n", mainState.activePage)
@@ -99,9 +99,12 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return dp, dp.Init()
 			case WithdrawalPage:
 				log.Println("MainState - Update - KeyMsg - Enter - WithdrawalPage - New")
-				// todo: implement WithdrawalPage and update this new func
 				wp := NewWithdrawalView(mainState)
 				return wp, wp.Init()
+			case TransactionsPage:
+				log.Println("MainState - Update - KeyMsg - Enter - TransactionsPage - New")
+				tp := NewTransactionsView(mainState, nil)
+				return tp, tp.Init()
 			}
 			// return mainState, nil
 		}
@@ -154,6 +157,7 @@ func main() {
 	menuItems := []list.Item{
 		item{title: "Deposit", desc: ""},
 		item{title: "Withdrawal", desc: ""},
+		item{title: "Transactions", desc: ""},
 	}
 
 	menuList := list.New(menuItems, list.NewDefaultDelegate(), 0, 0)
@@ -394,6 +398,8 @@ func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return d.mainState.Update(SubmitWithdrawal(d.amount, d.date, d.note))
 	}
 
+	return NewTransactionsView(d.mainState, nil), nil
+
 	// Form Updates
 	model, cmd := d.form.Update(msg)
 	if m, ok := model.(*huh.Form); ok {
@@ -465,4 +471,94 @@ func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
 	}
 
 	return ReturnToMenu("SubmitWithdrawal", &t)
+}
+
+/** Transactions Page */
+type TransactionsView struct {
+	mainState    MainState
+	title        string
+	list         list.Model
+	transactions []string
+	selectedUser string
+}
+
+type transactionItem struct {
+	title, desc string
+}
+
+func (i transactionItem) Title() string       { return i.title }
+func (i transactionItem) Description() string { return i.desc }
+func (i transactionItem) FilterValue() string {
+	return i.title
+}
+
+func NewTransactionsView(mainState MainState, transactions []interface{}) *TransactionsView {
+	transactionsView := &TransactionsView{
+		mainState:    mainState,
+		title:        "Transactions",
+		list:         list.Model{},
+		transactions: nil,
+		selectedUser: "",
+	}
+
+	transactionListItems := transactionsToListItems([]string{})
+
+	transactionsView.list = list.New(transactionListItems, list.DefaultDelegate{}, 32, 32)
+	return transactionsView
+}
+
+func transactionsToListItems(transactions []string) []list.Item {
+	listItems := []list.Item{}
+	for _, t := range transactions {
+		listItems = append(listItems, transactionItem{
+			title: t,
+			desc:  t,
+		})
+	}
+	return listItems
+}
+
+// Init implements tea.Model.
+func (t *TransactionsView) Init() tea.Cmd {
+	return nil
+}
+
+// Update implements tea.Model.
+func (t *TransactionsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Printf("Transactions - Update")
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		log.Printf("Transactions - Update - KeyMsg")
+		switch msg.String() {
+		case "ctrl+c":
+			log.Printf("Transactions - Update - KeyMsg - Ctrl+C - Quitting")
+			return t, tea.Quit
+		case "enter":
+			log.Printf("Transactions - Update - KeyMsg - Enter - Selected Transaction")
+			// Selected an option in the list
+			// todo: figure out what to do with transaction at this point
+			model, cmd := t.mainState.Update(ReturnToMenu("TransactionView", nil))
+			if m, ok := model.(MainState); ok {
+				t.mainState = m
+				cmds = append(cmds, cmd)
+			}
+			return t, tea.Batch(cmds...)
+		}
+	}
+
+	// Update List as Normal
+	log.Printf("Transactions - Update - Update List")
+	t.list, cmd = t.list.Update(msg)
+	cmds = append(cmds, cmd)
+
+	log.Printf("Transactions - Update - Returning")
+	return t, tea.Batch(cmds...)
+}
+
+// View implements tea.Model.
+func (t *TransactionsView) View() string {
+	return t.list.View()
 }
