@@ -14,7 +14,6 @@ package main
  */
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -70,7 +69,7 @@ func (mainState MainState) Init() tea.Cmd {
 
 func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	log.Println("MainState - Update")
-	// var cmds []tea.Cmd
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
 	// switch mainState.activePage {
@@ -87,7 +86,9 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			log.Println("MainState - Update - KeyMsg - Ctrl+C - Quitting")
-			return mainState, tea.Quit
+			mainState.activePage = MenuPage
+			cmds = append(cmds, tea.Quit)
+			// return mainState, tea.Quit
 		case "enter":
 			mainState.activePage = activePage(mainState.menuOptionsList.Index() + 1) // don't count menuPage
 			log.Printf("MainState - Update - KeyMsg - Enter - Selected: %d\n", mainState.activePage)
@@ -102,7 +103,7 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				wp := NewWithdrawalView(mainState)
 				return wp, wp.Init()
 			}
-			return mainState, nil
+			// return mainState, nil
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
@@ -112,11 +113,13 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.transaction != nil {
 			mainState.lastSubmit = *msg.transaction
 
-			prettyTransaction, _ := json.MarshalIndent(*msg.transaction, "", "  ")
-			err := huh.NewConfirm().Title("Submitting!").Description(string(prettyTransaction)).Affirmative("Okeydokey!").Negative("Sounds Good!").Run()
-			if err != nil {
-				log.Printf("MainState - Update - ReturnToMenuMsg - Failed in Cornfirm")
-			}
+			// prettyTransaction, _ := json.MarshalIndent(*msg.transaction, "", "  ")
+
+			// err := huh.NewConfirm().Title("Submitting!").Description(string(prettyTransaction)).Affirmative("Okeydokey!").Negative("Sounds Good!").Run()
+			// err := huh.NewConfirm().Title("Submitting!").Description(fmt.Sprintf("%+v", *msg.transaction)).Affirmative("Okeydokey!").Negative("Sounds Good!").Run()
+			// if err != nil {
+			// 	log.Printf("MainState - Update - ReturnToMenuMsg - Failed in Confirm - err: %#v\n", err)
+			// }
 		}
 		log.Printf("MainState - Update - ReturnToMenuMsg - From: %s", msg.from)
 		mainState.activePage = 0
@@ -124,8 +127,8 @@ func (mainState MainState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	mainState.menuOptionsList, cmd = mainState.menuOptionsList.Update(msg)
-	// cmds = append(cmds, cmd)
-	return mainState, cmd
+	cmds = append(cmds, cmd)
+	return mainState, tea.Batch(cmds...)
 }
 
 func (mainState MainState) View() string {
@@ -163,8 +166,8 @@ func main() {
 	// fmt.Println(menuList.Items())
 
 	// model := NewMainState()
-	log.Default().Println("Items: ", model.menuOptionsList.Items())
-	app := tea.NewProgram(model)
+	log.Println("Items: ", model.menuOptionsList.Items())
+	app := tea.NewProgram(model, tea.WithInputTTY())
 
 	/** Run App **/
 	_, err = app.Run()
@@ -179,6 +182,7 @@ type ReturnToMenuMsg struct {
 }
 
 func ReturnToMenu(from string, transaction *transaction) tea.Msg {
+	log.Printf("ReturnToMenu - Transaction: %+v\n", transaction)
 	return ReturnToMenuMsg{
 		from:        from,
 		transaction: transaction,
@@ -199,24 +203,26 @@ func SubmitDeposit(amount string, date string, note string) tea.Msg {
 		amt *= -1.0
 	}
 
+	// Parse Date
 	if date != "" {
-		d, err := time.Parse("YYYY-MM-DD", date)
+		dateparsed, err := time.Parse("YYYY-MM-DD", date)
 		if err != nil {
-			log.Printf("SubmitDeposit - failed to parse date: %s", date)
+			log.Printf("SubmitDeposit - Failed to parse date &%s\n", date)
 		}
-		datestr = d.String()
-
+		datestr = dateparsed.String()
 	} else {
-		datestr = time.Now().Format("YYYY-MM-DD")
+		datestr = time.Now().Format("2006-01-02") // weird go date format things
+		log.Printf("SubmitDeposit - time.Now() - %s\n", time.Now())
+		log.Printf("SubmitDeposit - Date was empty string - Using now: %s\n", datestr)
 	}
 
 	// post to API
-	log.Printf("Submitting with: \nAmount: %0.2f\nDate: %s\nNote: %s\n", amt, datestr, note)
+	log.Printf("SubmitDeposit - Submitting with: \nAmount: %0.2f\nDate: %s\nNote: %s\n", amt, datestr, note)
 
 	// Execute NodeJS Executable that takes in transaction as parameter,
 	// connects to actual budget server, then imports that transaction,
 	// finally shutting down the connection
-	payload := fmt.Sprintf(`{"account":"kaiden","date":"%s","amount":%f,"notes":"%s"}`, date, amt, note)
+	payload := fmt.Sprintf(`{"account":"kaiden","date":"%s","amount":%f,"notes":"%s"}`, datestr, amt, note)
 	cmd := exec.Command("./index.js", payload)
 	out, err := cmd.Output()
 	if err != nil {
@@ -243,13 +249,20 @@ type DepositView struct {
 }
 
 func isDate(s string) error {
-	re, err := regexp.Compile(`\d\d\d\d-\d\d-\d\d`)
+	if s == "" {
+		log.Println("isDate - date is empty - no error")
+		return nil
+	}
+	dateRegex, err := regexp.Compile(`\d\d\d\d-\d\d-\d\d`)
 	if err != nil {
+		log.Printf("isDate - could not parse date - %s\n", s)
 		return err
 	}
-	if !re.MatchString(s) {
+	if !dateRegex.MatchString(s) {
 		return errors.New("invalid date format - required: YYYY-MM-DD")
 	}
+
+	log.Println("isDate - Valid Date")
 
 	return nil
 }
@@ -343,9 +356,9 @@ func NewWithdrawalView(mainState MainState) *WithdrawalView {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Amount").Value(&withdrawalView.amount),
-			huh.NewInput().Title("Date").Value(&withdrawalView.date).Validate(isDate),
+			huh.NewInput().Title("Date").Description("If left empty; will use current date").Value(&withdrawalView.date).Validate(isDate),
 			huh.NewInput().Title("Note").Value(&withdrawalView.note),
-		),
+		).Title("Withdrawal Form"),
 	).WithHeight(24).WithWidth(32)
 	withdrawalView.form = form
 	return withdrawalView
@@ -361,6 +374,7 @@ func (d *WithdrawalView) Init() tea.Cmd {
 // Update implements tea.Model.
 func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+	var cmd tea.Cmd
 	log.Printf("Withdrawal - Update")
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -377,7 +391,7 @@ func (d *WithdrawalView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if d.form.State == huh.StateCompleted {
-		return d.mainState.Update(SubmitDeposit(d.amount, d.date, d.note))
+		return d.mainState.Update(SubmitWithdrawal(d.amount, d.date, d.note))
 	}
 
 	// Form Updates
@@ -399,6 +413,8 @@ func (d *WithdrawalView) View() string {
 func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
 	// todo: POST to API
 	var datestr string
+
+	// Parse Ammount
 	amt, err := strconv.ParseFloat(amount, 64)
 	if err != nil {
 		amt = 0                  // If there's an error, don't affect the balance.
@@ -406,11 +422,14 @@ func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
 		note = fmt.Sprintf("SubmitWithdrawal - Error Parsing Amount '%s' - Original Description: %s", amount, note)
 	}
 
+	// log.Printf("SubmitWithdrawal - Before Negative Coersion - amt: %f\n", amt)
+
 	// Ensure ammount is negative when submitting
 	if amt >= 0 {
 		amt *= -1.0 // multiply by negtive 1
 	}
 
+	// Parse Date
 	if date != "" {
 		dateparsed, err := time.Parse("YYYY-MM-DD", date)
 		if err != nil {
@@ -418,23 +437,26 @@ func SubmitWithdrawal(amount string, date string, note string) tea.Msg {
 		}
 		datestr = dateparsed.String()
 	} else {
-		datestr = time.Now().Format("YYYY-MM-DD")
+		datestr = time.Now().Format("2006-01-02")
+		log.Printf("SubmitWithdrawal - time.Now() - %s\n", time.Now())
+		log.Printf("SubmitWithdrawal - Date was empty string - Using now: %s\n", datestr)
 	}
 	// if can't parse use current date
 
 	// post to API
-	log.Printf("SubmitWithdrawal - Submitting with: \nAmount: %0.2f\nDate: %s\nNote: %s\n", amt, datestr, note)
+	log.Printf("SubmitWithdrawal - Submitting with: \n\tAmount: %0.2f\n\tDate: %s\n\tNote: %s\n", amt, datestr, note)
 
 	// Execute NodeJS Executable that takes in transaction as parameter,
 	// connects to actual budget server, then imports that transaction,
 	// finally shutting down the connection
+	// todo:
 	payload := fmt.Sprintf(`{"account":"kaiden","date":"%s","amount":%f,"notes":"%s"}`, datestr, amt, note)
 	cmd := exec.Command("./index.js", payload)
 	out, err := cmd.Output()
 	if err != nil {
-		log.Printf("SubmitWithdrawal - Error: %v\n", err)
+		log.Printf("SubmitWithdrawal - Error: %+v\n", err)
 	}
-	log.Printf("SubmitWithdrawal - Output: %s\n", string(out))
+	log.Printf("SubmitWithdrawal - Submitted Successfully - Output: %s\n\n", string(out))
 
 	t := transaction{
 		amount: amt,

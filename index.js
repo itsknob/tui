@@ -59,7 +59,7 @@ async function importTransaction(transaction) {
   }
 
   // Confirmation
-  // console.log("Final Transaction", transaction);
+  console.log("Final Transaction: \n", JSON.stringify(transaction, null, 2));
 
   // Upload
   await api.importTransactions(transaction.account, [transaction])
